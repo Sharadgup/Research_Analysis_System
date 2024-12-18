@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Analysis System - Upload</title>
+    <title>Enhanced Research Analysis System - Upload</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -47,13 +47,14 @@
 </head>
 <body>
     <div class="container">
-        <h1>Research Analysis System</h1>
-        <p>Upload a PDF file to analyze</p>
+        <h1>Enhanced Research Analysis System</h1>
+        <p>Upload multiple files (PDF, DOCX, TXT) to analyze</p>
         <form method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept=".pdf" required>
+            <input type="file" name="files[]" accept=".pdf,.docx,.txt" multiple required>
             <br>
             <input type="submit" value="Upload and Analyze">
         </form>
     </div>
 </body>
 </html>
+

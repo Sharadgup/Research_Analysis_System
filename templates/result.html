@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Analysis System - Results</title>
+    <title>Enhanced Research Analysis System - Results</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -23,7 +23,7 @@
         h1, h2 {
             color: #333;
         }
-        .summary {
+        .section {
             background-color: #e7f3fe;
             border-left: 3px solid #2196F3;
             padding: 10px;
@@ -38,17 +38,54 @@
         .back-link:hover {
             text-decoration: underline;
         }
+        ul {
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Research Analysis Results</h1>
-        <h2>File: {{ filename }}</h2>
-        <div class="summary">
-            <h3>Summary:</h3>
-            <p>{{ summary }}</p>
+        <h1>Enhanced Research Analysis Results</h1>
+        
+        <div class="section">
+            <h2>Document Information</h2>
+            <p>Total words analyzed: {{ total_words }}</p>
+            <ul>
+            {% for file in file_info %}
+                <li>{{ file.name }}: {{ file.word_count }} words</li>
+            {% endfor %}
+            </ul>
         </div>
+        
+        <div class="section">
+            <h2>Key Points</h2>
+            <pre>{{ summary }}</pre>
+        </div>
+        
+        <div class="section">
+            <h2>Entities Mentioned</h2>
+            <h3>People:</h3>
+            <ul>
+            {% for person in entities.people %}
+                <li>{{ person }}</li>
+            {% endfor %}
+            </ul>
+            <h3>Organizations:</h3>
+            <ul>
+            {% for org in entities.organizations %}
+                <li>{{ org }}</li>
+            {% endfor %}
+            </ul>
+            <h3>Locations:</h3>
+            <ul>
+            {% for location in entities.locations %}
+                <li>{{ location }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        
         <a href="/" class="back-link">← Back to Upload</a>
     </div>
 </body>
 </html>
+
