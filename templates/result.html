@@ -20,7 +20,7 @@
             max-width: 800px;
             margin: 0 auto;
         }
-        h1, h2 {
+        h1, h2, h3 {
             color: #333;
         }
         .section {
@@ -40,6 +40,45 @@
         }
         ul {
             padding-left: 20px;
+        }
+        form {
+            margin-top: 20px;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+        .weight-selector {
+            margin-bottom: 10px;
+        }
+        .weight-selector label {
+            margin-right: 10px;
+        }
+        .no-results {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffeeba;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+        .no-results h3 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .no-results ul {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -83,6 +122,86 @@
             {% endfor %}
             </ul>
         </div>
+        
+        <div class="section">
+            <h2>Ask for More Information</h2>
+            <form action="{{ url_for('ask_question') }}" method="post">
+                <input type="hidden" name="filenames" value="{{ ','.join(file_info|map(attribute='name')) }}">
+                <textarea name="question" rows="3" placeholder="Ask a question about the analyzed documents..." required></textarea>
+                <div class="weight-selector">
+                    <label>
+                        <input type="radio" name="weight" value="summary" checked> Emphasize Summary
+                    </label>
+                    <label>
+                        <input type="radio" name="weight" value="entities"> Emphasize Entities
+                    </label>
+                    <label>
+                        <input type="radio" name="weight" value="context"> Emphasize Context
+                    </label>
+                </div>
+                <input type="submit" value="Ask Question">
+            </form>
+        </div>
+        
+        {% if additional_info %}
+        <div class="section">
+            <h2>Additional Information from Documents</h2>
+            <p>{{ additional_info }}</p>
+        </div>
+        {% endif %}
+        
+        {% if web_analysis %}
+        <div class="section">
+            <h2>Web Search Analysis</h2>
+            {% if web_analysis.results %}
+                <h3>Summary of Web Results:</h3>
+                <pre>{{ web_analysis.summary }}</pre>
+                
+                <h3>Entities from Web Search:</h3>
+                <h4>People:</h4>
+                <ul>
+                {% for person in web_analysis.entities.people %}
+                    <li>{{ person }}</li>
+                {% endfor %}
+                </ul>
+                <h4>Organizations:</h4>
+                <ul>
+                {% for org in web_analysis.entities.organizations %}
+                    <li>{{ org }}</li>
+                {% endfor %}
+                </ul>
+                <h4>Locations:</h4>
+                <ul>
+                {% for location in web_analysis.entities.locations %}
+                    <li>{{ location }}</li>
+                {% endfor %}
+                </ul>
+                
+                <h3>Top 3 Search Results:</h3>
+                <ol>
+                {% for result in web_analysis.results %}
+                    <li>
+                        <strong>{{ result.title }}</strong><br>
+                        <a href="{{ result.link }}" target="_blank">{{ result.link }}</a><br>
+                        {{ result.snippet }}
+                    </li>
+                {% endfor %}
+                </ol>
+            {% else %}
+                <div class="no-results">
+                    <h3>No Web Search Results</h3>
+                    <p>{{ web_analysis.summary }}</p>
+                    <h4>Suggestions:</h4>
+                    <ul>
+                        <li>Try rephrasing your question using different keywords.</li>
+                        <li>Break down your question into smaller, more specific parts.</li>
+                        <li>Check if your question contains any unusual terms or spelling errors.</li>
+                        <li>If the issue persists, there might be a temporary problem with the search service. Please try again later.</li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
         
         <a href="/" class="back-link">← Back to Upload</a>
     </div>

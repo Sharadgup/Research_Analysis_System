@@ -8,6 +8,9 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.probability import FreqDist
 import string
 import docx
+import requests
+from bs4 import BeautifulSoup
+import re
 
 # Download necessary NLTK data
 nltk.download('punkt')
@@ -73,7 +76,7 @@ def generate_summary(text, num_sentences=3):
     
     simple_summary = "Key points:\n\n"
     for i, sentence in enumerate(summary_sentences, 1):
-        simple_summary += f"{i}. {' '.join(sentence.split()[:15])}...\n"
+        simple_summary += f"{i}. {sentence}\n"
     
     return simple_summary
 
@@ -104,6 +107,44 @@ def extract_entities(text):
 def count_words(text):
     words = word_tokenize(text)
     return len(words)
+
+def search_and_analyze(query):
+    search_url = f"https://www.google.com/search?q={query}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    
+    response = requests.get(search_url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    search_results = []
+    for g in soup.find_all('div', class_='g'):
+        anchor = g.find('a')
+        if anchor:
+            link = anchor['href']
+            title = g.find('h3', class_='r')
+            snippet = g.find('div', class_='s')
+            if title and snippet:
+                search_results.append({
+                    'title': title.text,
+                    'link': link,
+                    'snippet': snippet.text
+                })
+    
+    if not search_results:
+        return {
+            'summary': f"No results found for the query: '{query}'. This could be due to very specific or unusual search terms, or temporary issues with the search service. You may want to try rephrasing your question or breaking it down into smaller, more general parts.",
+            'entities': {'people': [], 'organizations': [], 'locations': []},
+            'results': []
+        }
+    
+    combined_text = " ".join([result['snippet'] for result in search_results])
+    summary = generate_summary(combined_text, num_sentences=5)
+    entities = extract_entities(combined_text)
+    
+    return {
+        'summary': summary,
+        'entities': entities,
+        'results': search_results[:3]  # Return top 3 search results
+    }
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -146,6 +187,41 @@ def analyze_files(filenames):
                            entities=entities, 
                            file_info=file_info, 
                            total_words=total_words)
+
+@app.route('/ask_question', methods=['POST'])
+def ask_question():
+    filenames = request.form['filenames'].split(',')
+    question = request.form['question']
+    weight = request.form['weight']
+
+    all_text = ""
+    for filename in filenames:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        all_text += extract_text(file_path)
+
+    summary = generate_summary(all_text)
+    entities = extract_entities(all_text)
+
+    # Simple question-answering logic based on weights
+    if weight == 'summary':
+        response = f"Based on the summary, here's a possible answer to your question:\n\n{summary}\n\nThis information is most relevant to your query: '{question}'"
+    elif weight == 'entities':
+        entity_info = f"People: {', '.join(entities['people'])}\nOrganizations: {', '.join(entities['organizations'])}\nLocations: {', '.join(entities['locations'])}"
+        response = f"Considering the entities mentioned in the documents, here's relevant information for your question:\n\n{entity_info}\n\nThis information might help answer your query: '{question}'"
+    else:  # weight == 'context'
+        context = ' '.join(sent_tokenize(all_text)[:5])  # Use first 5 sentences as context
+        response = f"Taking the broader context into account, here's a possible answer to your question:\n\n{context}\n\nThis context is most relevant to your query: '{question}'"
+
+    # Perform web search and analysis
+    web_analysis = search_and_analyze(question)
+
+    return render_template('result.html',
+                           summary=summary,
+                           entities=entities,
+                           file_info=[{'name': filename, 'word_count': count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename)))} for filename in filenames],
+                           total_words=sum(count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename))) for filename in filenames),
+                           additional_info=response,
+                           web_analysis=web_analysis)
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
