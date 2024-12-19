@@ -11,7 +11,6 @@ import docx
 import requests
 from bs4 import BeautifulSoup
 import re
-from Pythonanywhere_config import configure_app
 
 # Download necessary NLTK data
 nltk.download('punkt')
@@ -21,7 +20,6 @@ nltk.download('maxent_ne_chunker')
 nltk.download('words')
 
 app = Flask(__name__)
-configure_app(app)
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'docx', 'txt'}
 
@@ -230,3 +228,4 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 print("Enhanced Research Analysis System is ready to run!")
+
