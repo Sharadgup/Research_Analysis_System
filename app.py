@@ -8,7 +8,6 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.probability import FreqDist
 import string
 import docx
-import textract
 
 # Download necessary NLTK data
 nltk.download('punkt')
@@ -34,7 +33,7 @@ def extract_text(file_path):
         with open(file_path, 'r', encoding='utf-8') as file:
             return file.read()
     else:
-        return textract.process(file_path).decode('utf-8')
+        return "Error: Unsupported file type."
 
 def extract_text_from_pdf(file_path):
     with open(file_path, 'rb') as file:

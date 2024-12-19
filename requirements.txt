@@ -2,7 +2,4 @@ Flask==2.3.2
 PyPDF2==3.0.1
 nltk==3.8.1
 Werkzeug==2.3.6
-python-docx
-textract== 1.6.4
-docx
-textract
+python-docx==0.8.11
