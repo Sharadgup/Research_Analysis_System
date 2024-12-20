@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, abort
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, abort, jsonify
 from werkzeug.utils import secure_filename
 import os
 import PyPDF2
@@ -12,17 +12,23 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import logging
+from logging.handlers import RotatingFileHandler
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 # Download necessary NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
+nltk.download('punkt', quiet=True)
+nltk.download('stopwords', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
+nltk.download('maxent_ne_chunker', quiet=True)
+nltk.download('words', quiet=True)
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads/'
@@ -158,11 +164,11 @@ def upload_file():
         logger.debug("POST request received at /")
         if 'files[]' not in request.files:
             logger.warning("No file part in the request")
-            return redirect(request.url)
+            return jsonify({"error": "No file part"}), 400
         files = request.files.getlist('files[]')
         if not files or files[0].filename == '':
             logger.warning("No file selected")
-            return redirect(request.url)
+            return jsonify({"error": "No file selected"}), 400
         if all(file and allowed_file(file.filename) for file in files):
             filenames = []
             for file in files:
@@ -171,46 +177,66 @@ def upload_file():
                 file.save(file_path)
                 filenames.append(filename)
             logger.info(f"Files uploaded: {filenames}")
-            return redirect(url_for('analyze_files', filenames=','.join(filenames)))
+            return jsonify({"message": "Files uploaded successfully", "filenames": filenames}), 200
         else:
             logger.warning("Invalid file type uploaded")
+            return jsonify({"error": "Invalid file type"}), 400
     return render_template('upload.html')
 
-@app.route('/analyze/<filenames>')
-def analyze_files(filenames):
+@app.route('/analyze', methods=['POST'])
+def analyze_files():
+    data = request.json
+    if not data or 'filenames' not in data:
+        return jsonify({"error": "No filenames provided"}), 400
+    
+    filenames = data['filenames']
     logger.debug(f"Analyze request received for files: {filenames}")
-    file_list = filenames.split(',')
+    
     all_text = ""
     total_words = 0
     file_info = []
 
-    for filename in file_list:
+    for filename in filenames:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        logger.debug(f"Checking file path: {file_path}")
         if os.path.exists(file_path):
             logger.info(f"Processing file: {filename}")
-            text = extract_text(file_path)
-            all_text += text
-            word_count = count_words(text)
-            total_words += word_count
-            file_info.append({'name': filename, 'word_count': word_count})
+            try:
+                text = extract_text(file_path)
+                all_text += text
+                word_count = count_words(text)
+                total_words += word_count
+                file_info.append({'name': filename, 'word_count': word_count})
+            except Exception as e:
+                logger.error(f"Error processing file {filename}: {str(e)}")
+                return jsonify({"error": f"Error processing file {filename}: {str(e)}"}), 500
         else:
             logger.error(f"File not found: {filename}")
-            abort(404, description=f"File not found: {filename}")
+            return jsonify({"error": f"File not found: {filename}"}), 404
 
-    summary = generate_summary(all_text)
-    entities = extract_entities(all_text)
+    try:
+        summary = generate_summary(all_text)
+        entities = extract_entities(all_text)
+    except Exception as e:
+        logger.error(f"Error generating summary or extracting entities: {str(e)}")
+        return jsonify({"error": "Error analyzing files. Please try again."}), 500
 
-    return render_template('result.html', 
-                           summary=summary, 
-                           entities=entities, 
-                           file_info=file_info, 
-                           total_words=total_words)
+    return jsonify({
+        "summary": summary,
+        "entities": entities,
+        "file_info": file_info,
+        "total_words": total_words
+    }), 200
 
 @app.route('/ask_question', methods=['POST'])
 def ask_question():
-    filenames = request.form['filenames'].split(',')
-    question = request.form['question']
-    weight = request.form['weight']
+    data = request.json
+    if not data or 'filenames' not in data or 'question' not in data or 'weight' not in data:
+        return jsonify({"error": "Invalid request data"}), 400
+
+    filenames = data['filenames']
+    question = data['question']
+    weight = data['weight']
 
     logger.debug(f"Question asked: {question}")
     logger.debug(f"Files to analyze: {filenames}")
@@ -222,7 +248,7 @@ def ask_question():
             all_text += extract_text(file_path)
         else:
             logger.error(f"File not found: {filename}")
-            abort(404, description=f"File not found: {filename}")
+            return jsonify({"error": f"File not found: {filename}"}), 404
 
     summary = generate_summary(all_text)
     entities = extract_entities(all_text)
@@ -238,13 +264,14 @@ def ask_question():
 
     web_analysis = search_and_analyze(question)
 
-    return render_template('result.html',
-                           summary=summary,
-                           entities=entities,
-                           file_info=[{'name': filename, 'word_count': count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename)))} for filename in filenames],
-                           total_words=sum(count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename))) for filename in filenames),
-                           additional_info=response,
-                           web_analysis=web_analysis)
+    return jsonify({
+        "summary": summary,
+        "entities": entities,
+        "file_info": [{'name': filename, 'word_count': count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename)))} for filename in filenames],
+        "total_words": sum(count_words(extract_text(os.path.join(app.config['UPLOAD_FOLDER'], filename))) for filename in filenames),
+        "additional_info": response,
+        "web_analysis": web_analysis
+    }), 200
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -254,12 +281,20 @@ def uploaded_file(filename):
 @app.errorhandler(404)
 def not_found_error(error):
     logger.error(f"404 error: {error}")
-    return render_template('404.html'), 404
+    return jsonify({"error": "Not found"}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     logger.error(f"500 error: {error}")
-    return render_template('500.html'), 500
+    return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/test_file/<filename>')
+def test_file(filename):
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(file_path):
+        return jsonify({"message": f"File {filename} exists and is accessible."}), 200
+    else:
+        return jsonify({"error": f"File {filename} does not exist or is not accessible."}), 404
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
