@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, abort
 from werkzeug.utils import secure_filename
 import os
 import PyPDF2
@@ -11,6 +11,11 @@ import docx
 import requests
 from bs4 import BeautifulSoup
 import re
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Download necessary NLTK data
 nltk.download('punkt')
@@ -22,6 +27,7 @@ nltk.download('words')
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'docx', 'txt'}
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max file size
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -149,10 +155,13 @@ def search_and_analyze(query):
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
+        logger.debug("POST request received at /")
         if 'files[]' not in request.files:
+            logger.warning("No file part in the request")
             return redirect(request.url)
         files = request.files.getlist('files[]')
         if not files or files[0].filename == '':
+            logger.warning("No file selected")
             return redirect(request.url)
         if all(file and allowed_file(file.filename) for file in files):
             filenames = []
@@ -161,11 +170,15 @@ def upload_file():
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
                 filenames.append(filename)
+            logger.info(f"Files uploaded: {filenames}")
             return redirect(url_for('analyze_files', filenames=','.join(filenames)))
+        else:
+            logger.warning("Invalid file type uploaded")
     return render_template('upload.html')
 
 @app.route('/analyze/<filenames>')
 def analyze_files(filenames):
+    logger.debug(f"Analyze request received for files: {filenames}")
     file_list = filenames.split(',')
     all_text = ""
     total_words = 0
@@ -173,11 +186,16 @@ def analyze_files(filenames):
 
     for filename in file_list:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        text = extract_text(file_path)
-        all_text += text
-        word_count = count_words(text)
-        total_words += word_count
-        file_info.append({'name': filename, 'word_count': word_count})
+        if os.path.exists(file_path):
+            logger.info(f"Processing file: {filename}")
+            text = extract_text(file_path)
+            all_text += text
+            word_count = count_words(text)
+            total_words += word_count
+            file_info.append({'name': filename, 'word_count': word_count})
+        else:
+            logger.error(f"File not found: {filename}")
+            abort(404, description=f"File not found: {filename}")
 
     summary = generate_summary(all_text)
     entities = extract_entities(all_text)
@@ -194,15 +212,21 @@ def ask_question():
     question = request.form['question']
     weight = request.form['weight']
 
+    logger.debug(f"Question asked: {question}")
+    logger.debug(f"Files to analyze: {filenames}")
+
     all_text = ""
     for filename in filenames:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        all_text += extract_text(file_path)
+        if os.path.exists(file_path):
+            all_text += extract_text(file_path)
+        else:
+            logger.error(f"File not found: {filename}")
+            abort(404, description=f"File not found: {filename}")
 
     summary = generate_summary(all_text)
     entities = extract_entities(all_text)
 
-    # Simple question-answering logic based on weights
     if weight == 'summary':
         response = f"Based on the summary, here's a possible answer to your question:\n\n{summary}\n\nThis information is most relevant to your query: '{question}'"
     elif weight == 'entities':
@@ -212,7 +236,6 @@ def ask_question():
         context = ' '.join(sent_tokenize(all_text)[:5])  # Use first 5 sentences as context
         response = f"Taking the broader context into account, here's a possible answer to your question:\n\n{context}\n\nThis context is most relevant to your query: '{question}'"
 
-    # Perform web search and analysis
     web_analysis = search_and_analyze(question)
 
     return render_template('result.html',
@@ -223,9 +246,24 @@ def ask_question():
                            additional_info=response,
                            web_analysis=web_analysis)
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    logger.debug(f"Request for uploaded file: {filename}")
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    logger.error(f"404 error: {error}")
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"500 error: {error}")
+    return render_template('500.html'), 500
+
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     app.run(host='0.0.0.0', port=5000, debug=True)
-    
-print("Enhanced Research Analysis System is ready to run!")
+
+logger.info("Enhanced Research Analysis System is ready to run!")
 

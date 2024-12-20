@@ -3,42 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Research Analysis System - Upload</title>
+    <title>Upload Files - Research Analysis System</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             margin: 0;
             padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             background-color: #f4f4f4;
         }
         .container {
-            background-color: white;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            text-align: center;
         }
         h1 {
+            text-align: center;
             color: #333;
         }
         form {
-            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         input[type="file"] {
-            margin-bottom: 10px;
+            margin-bottom: 20px;
         }
         input[type="submit"] {
             background-color: #4CAF50;
             color: white;
-            padding: 10px 15px;
+            padding: 10px 20px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
         }
         input[type="submit"]:hover {
             background-color: #45a049;
@@ -47,11 +48,9 @@
 </head>
 <body>
     <div class="container">
-        <h1>Enhanced Research Analysis System</h1>
-        <p>Upload multiple files (PDF, DOCX, TXT) to analyze</p>
+        <h1>Upload Files for Analysis</h1>
         <form method="post" enctype="multipart/form-data">
-            <input type="file" name="files[]" accept=".pdf,.docx,.txt" multiple required>
-            <br>
+            <input type="file" name="files[]" multiple accept=".pdf,.docx,.txt">
             <input type="submit" value="Upload and Analyze">
         </form>
     </div>
