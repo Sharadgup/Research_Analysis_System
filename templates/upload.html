@@ -32,7 +32,7 @@
         input[type="file"] {
             margin-bottom: 20px;
         }
-        input[type="submit"] {
+        button {
             background-color: #4CAF50;
             color: white;
             padding: 10px 20px;
@@ -41,19 +41,75 @@
             cursor: pointer;
             font-size: 16px;
         }
-        input[type="submit"]:hover {
+        button:hover {
             background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .error {
+            color: #ff0000;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Upload Files for Analysis</h1>
-        <form method="post" enctype="multipart/form-data">
+        <form id="uploadForm">
             <input type="file" name="files[]" multiple accept=".pdf,.docx,.txt">
-            <input type="submit" value="Upload and Analyze">
+            <button type="submit">Upload and Analyze</button>
         </form>
+        <div id="result"></div>
     </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var formData = new FormData(this);
+            
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('result').innerHTML = '<p class="error">' + data.error + '</p>';
+                } else {
+                    fetch('/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({filenames: data.filenames})
+                    })
+                    .then(response => response.json())
+                    .then(analysisData => {
+                        var resultHtml = '<h2>Analysis Results</h2>';
+                        resultHtml += '<p><strong>Summary:</strong><br>' + analysisData.summary + '</p>';
+                        resultHtml += '<p><strong>Entities:</strong><br>';
+                        resultHtml += 'People: ' + analysisData.entities.people.join(', ') + '<br>';
+                        resultHtml += 'Organizations: ' + analysisData.entities.organizations.join(', ') + '<br>';
+                        resultHtml += 'Locations: ' + analysisData.entities.locations.join(', ') + '</p>';
+                        resultHtml += '<p><strong>Total Words:</strong> ' + analysisData.total_words + '</p>';
+                        document.getElementById('result').innerHTML = resultHtml;
+                    })
+                    .catch(error => {
+                        document.getElementById('result').innerHTML = '<p class="error">Error analyzing files: ' + error + '</p>';
+                    });
+                }
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = '<p class="error">Error uploading files: ' + error + '</p>';
+            });
+        });
+    </script>
 </body>
 </html>
 
